@@ -1,5 +1,5 @@
-api_key ="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"
-host = 'localhost'
+api_key =""
+host = ''
 password = ''
-user = 'root'
-database = 'tfgdatabase'
+user = ''
+database = ''
