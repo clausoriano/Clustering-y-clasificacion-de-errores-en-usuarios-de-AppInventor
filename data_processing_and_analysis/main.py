@@ -19,3 +19,5 @@ def execute_data_analysis():
     mean_time_calculator.main()
     top.main()
     solution_finder_gpt_api.main()
+
+execute_data_analysis()
