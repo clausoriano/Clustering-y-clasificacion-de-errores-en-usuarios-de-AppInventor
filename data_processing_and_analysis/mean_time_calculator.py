@@ -47,7 +47,7 @@ def mean_time_per_cat(category):
     cursor.execute(query,params)
     conn.commit()
 
-def main():
+def process():
     cats = [5, 20, 11, 17, 10, 19, 12, 18, 14, 24, 3, 21, 13, 27, 7, 9, 16, 29, 28]
     for cat in cats:
         mean_time_per_cat(cat)

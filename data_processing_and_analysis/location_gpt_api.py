@@ -3,7 +3,6 @@ import os
 import time
 import openai
 import pymysql
-import tiktoken
 import config
 
 # creamos la conexion con la API
@@ -73,7 +72,7 @@ def coords_to_users():
         conn.commit()
 
 
-def main():
+def process():
     load_locations()
     get_coordinates_gpt()
     coords_to_users()

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pymysql
 import seaborn as sb
 from numpy.linalg import norm
-from pasta.augment import inline
+#from pasta.augment import inline
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin_min
 from sympy.physics.quantum.circuitplot import matplotlib
@@ -67,6 +67,8 @@ def apply_kmeans():
 
     df = pd.DataFrame(labels,columns=['label'])
 
+    colores=['red','green','blue','cyan','yellow','orange','indigo','coral','slategray','palegreen']
+
     colores=['red','green','blue','cyan','yellow','orange','indigo','coral','slategray','palegreen','lime','navy','turquoise','tan','olive','pink','cadetblue','deeppink','palevioletred','darkslateblue']
     asignar=[]
     for row in labels:
@@ -122,7 +124,7 @@ def update_similar_questions():
 
 
 
-def main():
+def process():
     query = "SELECT about,link,text FROM questions WHERE embedding != ''"
     cursor.execute(query)
     data = cursor.fetchall()
@@ -152,4 +154,6 @@ def main():
         params = [result[2],result[0]]
         cursor.execute(query,params)
         conn.commit()
+
+    update_similar_questions()
 

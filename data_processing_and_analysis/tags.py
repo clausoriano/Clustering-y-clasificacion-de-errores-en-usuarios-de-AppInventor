@@ -207,14 +207,14 @@ def get_recommended_tags_gpt():
 
 
 
-def main():
+def process():
     get_tags()
-    get_tags_description_gpt()
+    load_unttaged_questions()
+    get_recommended_tags_gpt()
     cats = [5, 20, 11, 17, 10, 19, 12, 18, 14, 24, 3, 21, 13, 27, 7, 9, 16, 29, 28]
     for cat in cats:
         tags_per_cat(cat)
-    load_unttaged_questions()
-    get_recommended_tags_gpt()
     get_tags_sentiments()
+    get_tags_description_gpt()
 
 

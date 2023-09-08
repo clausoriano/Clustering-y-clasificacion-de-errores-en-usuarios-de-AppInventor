@@ -7,7 +7,7 @@ import config
 import json
 
 #DESCRIPCION: Asigna a cada pregunta de StackOverflow una categoría de las existentes en el Foro Oficial de App Inventor
-def cat_classification_gpt():
+def cat_classification_gpt(quest):
     # creamos la conexion con la API
     openai.api_key = config.api_key
     # creamos la conexion con la BD
@@ -38,80 +38,75 @@ def cat_classification_gpt():
     question = '''Based on the description of the 19 previous categories, where would you categorise this text?'''
     final_instruction = '''Answer with the category number in json format'''
 
-    # seleccionamos las preguntas de stackoverflow porque son las unicas que no tienen categoria asignada.
-    query = "SELECT link,text,site FROM questions WHERE about = '' AND site = 0"
-    cursor.execute(query)
-    uncategorized = cursor.fetchall()
-
     #numero de tokens del enunciado
     encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
     firstEncoding = encoding.encode(category_1 + category_2 + category_3 + category_4 + category_5 + category_6 + category_7 + category_8 + category_9 + category_10 + category_11 + category_12 + category_13 + category_14 + category_15 + category_16 + category_17 + category_18 + category_19 + question + final_instruction)
 
 
     # tarea y llamada a la api de chatGPT, por cada pregunta hacemos llamada a la api
-    for quest in uncategorized:
-      question = '''Based on the description of the 19 previous categories, where would you categorise this text?'''
-      text_to_categorize = quest[1]
 
-      #numero de tokens de la pregunta
-      encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
-      secondEncoding = encoding.encode(text_to_categorize + question)
+    question = '''Based on the description of the 19 previous categories, where would you categorise this text?'''
+    text_to_categorize = quest[5]
+
+    #numero de tokens de la pregunta
+    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+    secondEncoding = encoding.encode(text_to_categorize + question)
 
     # controlamos que el numero de tokens no supere el maximo permitido por el modelo
-      trimmedString = ''
-      flag = False
-      while (len(firstEncoding)+len(secondEncoding)) > 4097:
+    trimmedString = ''
+    flag = False
+    while (len(firstEncoding)+len(secondEncoding)) > 4097:
         flag = True
         for i in range(0, len(text_to_categorize)):
-          if i <= len(text_to_categorize) // 2 - 1:
-            trimmedString = trimmedString + text_to_categorize[i]
-            secondEncoding = encoding.encode(trimmedString)
-      if flag:
-        text_to_categorize = trimmedString
+            if i <= len(text_to_categorize) // 2 - 1:
+                trimmedString = trimmedString + text_to_categorize[i]
+                secondEncoding = encoding.encode(trimmedString)
+            if flag:
+                text_to_categorize = trimmedString
 
 
-      completion = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo", temperature = 0,
-        messages=[
-          {"role": "user", "content": duty_explanation},
-          {"role": "user", "content": category_1},
-          {"role": "user", "content": category_2},
-          {"role": "user", "content": category_3},
-          {"role": "user", "content": category_4},
-          {"role": "user", "content": category_5},
-          {"role": "user", "content": category_6},
-          {"role": "user", "content": category_7},
-          {"role": "user", "content": category_8},
-          {"role": "user", "content": category_9},
-          {"role": "user", "content": category_10},
-          {"role": "user", "content": category_11},
-          {"role": "user", "content": category_12},
-          {"role": "user", "content": category_13},
-          {"role": "user", "content": category_14},
-          {"role": "user", "content": category_15},
-          {"role": "user", "content": category_16},
-          {"role": "user", "content": category_17},
-          {"role": "user", "content": category_18},
-          {"role": "user", "content": category_19},
-          {"role": "user", "content": question},
-          {"role": "user", "content": text_to_categorize},
-          {"role": "user", "content": final_instruction}
-        ]
-      )
+    completion = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo", temperature = 0,
+    messages=[
+      {"role": "user", "content": duty_explanation},
+      {"role": "user", "content": category_1},
+      {"role": "user", "content": category_2},
+      {"role": "user", "content": category_3},
+      {"role": "user", "content": category_4},
+      {"role": "user", "content": category_5},
+      {"role": "user", "content": category_6},
+      {"role": "user", "content": category_7},
+      {"role": "user", "content": category_8},
+      {"role": "user", "content": category_9},
+      {"role": "user", "content": category_10},
+      {"role": "user", "content": category_11},
+      {"role": "user", "content": category_12},
+      {"role": "user", "content": category_13},
+      {"role": "user", "content": category_14},
+      {"role": "user", "content": category_15},
+      {"role": "user", "content": category_16},
+      {"role": "user", "content": category_17},
+      {"role": "user", "content": category_18},
+      {"role": "user", "content": category_19},
+      {"role": "user", "content": question},
+      {"role": "user", "content": text_to_categorize},
+      {"role": "user", "content": final_instruction}
+    ]
+    )
 
-      #respuesta de cada pregunta
-      solution = completion.choices[0].message.content
-      solution = json.loads(solution)
-      category = solution['category']
-      print(solution)
+    #respuesta de cada pregunta
+    solution = completion.choices[0].message.content
+    solution = json.loads(solution)
+    category = solution['category']
+    print(solution)
 
-      #guardamos la respuesta en la BBDD
-      query = 'UPDATE questions SET about = %s WHERE site = 0 AND link = %s;'
-      params = [category,quest[0]]
-      cursor.execute(query,params)
-      conn.commit()
+    #guardamos la respuesta en la BBDD
+    query = 'UPDATE questions SET about = %s WHERE site = 0 AND link = %s;'
+    params = [category,quest[1]]
+    cursor.execute(query,params)
+    conn.commit()
 
-      time.sleep(20)
+    time.sleep(20)
 
-def main():
-    cat_classification_gpt()
+def process(question):
+    cat_classification_gpt(question)

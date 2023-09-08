@@ -6,15 +6,6 @@ import pymysql
 conn = pymysql.connect(user=config.user, password=config.password, host=config.host, database=config.database)
 cursor = conn.cursor()
 
-#Funcion que devuelve el top 10 de preguntas mas vistas por categoría
-def top_cat(cat):
-    query = "SELECT link,title,text,views FROM questions WHERE about = %s ORDER BY views DESC"
-    params = [cat]
-    cursor.execute(query,params)
-    data = cursor.fetchall()
-    print(data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],data[8],data[9])
-    print("FIN")
-
 #Funcion que devuelve el top 10 de usuarios mas activos por categoria
 def top_users_cat(cat):
     query = "SELECT owner,link FROM questions WHERE about = %s AND text != ''"
@@ -89,11 +80,10 @@ def count_likes_views(cat):
     cursor.execute(query, params)
     conn.commit()
 
-def main():
+def process():
     cats = [5,20,11,17,10,19,12,18,14,24,3,21,13,27,7,9,16,29,28]
     for cat in cats:
-        top_cat(cat)
         count_likes_views(cat)
-        count_answers(cat)
         count_questions(cat)
+        count_answers(cat)
         top_users_cat(cat)

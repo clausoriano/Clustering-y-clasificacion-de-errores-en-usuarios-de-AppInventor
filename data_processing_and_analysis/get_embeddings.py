@@ -41,12 +41,11 @@ def get_embedding(text, model="text-embedding-ada-002"):
    time.sleep(20)
    return embedding
 
-def getemb_questions():
-   query = "SELECT link,text FROM questions WHERE text != '' AND embedding ='' AND site = 1"
-   cursor.execute(query)
-   questions = cursor.fetchall()
-
-   full_df = pd.DataFrame(questions, columns=['link', 'text'])
+def getemb_question(quest):
+   link = quest[1]
+   text = quest[5]
+   dict = {'link': link, 'text': text}
+   full_df = pd.DataFrame([dict])
    full_df.head()
 
    # lower casing
@@ -73,23 +72,20 @@ def getemb_questions():
          params = [str(embedding),question[0]]
          cursor.execute(query,params)
          conn.commit()
-         print("---------------------------------------------------------------------------")
          print("Question " + str(question[0]) + ": " + str(embedding))
          print("Dimension: " + str(length))
-         print("---------------------------------------------------------------------------")
+         query = "SELECT answer_id,text FROM answers WHERE text != '' AND embedding = '' AND question_id = %s"
+         params = [quest[1]]
+         cursor.execute(query, params)
+         answers = cursor.fetchall()
+         getemb_answers(answers)
       else:
-         print("---------------------------------------------------------------------------")
          print("Question "+ str(question[0]) + ": Too many tokens -> " + str(len(tokens)))
-         print("---------------------------------------------------------------------------")
 
-   print("end")
 
-def getemb_answers():
-   query = "SELECT answer_id,text FROM answers WHERE text != '' AND embedding ='' AND site = 1"
-   cursor.execute(query)
-   questions = cursor.fetchall()
+def getemb_answers(answ):
 
-   full_df = pd.DataFrame(questions, columns=['link', 'text'])
+   full_df = pd.DataFrame(answ, columns=['link', 'text'])
    full_df.head()
 
    # lower casing
@@ -126,8 +122,6 @@ def getemb_answers():
          print("Answer "+ str(answer[0]) + ": Too many tokens -> " + str(len(tokens)))
          print("---------------------------------------------------------------------------")
 
-   print("end")
 
-def main():
-   getemb_questions()
-   getemb_answers()
+def process(question):
+   getemb_question(question)

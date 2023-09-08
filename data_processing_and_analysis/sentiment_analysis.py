@@ -1,7 +1,6 @@
 import decimal
 import config
 import pymysql
-import tiktoken
 from transformers import pipeline
 from nltk.tokenize import word_tokenize
 
@@ -10,47 +9,41 @@ conn = pymysql.connect(user=config.user, password=config.password, host=config.h
 cursor = conn.cursor()
 
 # Funcion que analiza y guarda los sentimientos de las preguntas en la BBDD
-def questions_diagnosis():
-    # seleccionamos las preguntas
-    query = "SELECT link,text,site FROM questions WHERE sentiments = ''"
-    cursor.execute(query)
-    data = cursor.fetchall()
+def question_diagnosis(question):
+    classifier = pipeline("text-classification", model = "j-hartmann/emotion-english-distilroberta-base", return_all_scores=True, truncation = True)
 
-    # las pasamos al modelo de sentiment analysis y las guardamos el resultado en la BBDD
-    for question in data:
-        classifier = pipeline("text-classification", model = "j-hartmann/emotion-english-distilroberta-base", return_all_scores=True, truncation = True)
-        print("Link de la pregunta: " + question[0] + '\n')
+    sentiments = classifier(question[5])
+    diagnosis = ""
+    for sentiment in sentiments[0]:
+        diagnosis = diagnosis + sentiment['label'] + ": " + str(sentiment['score']) + ", "
 
-        sentiments = classifier(question[1])
-        diagnosis = ""
-        for sentiment in sentiments[0]:
-            diagnosis = diagnosis + sentiment['label'] + ": " + str(sentiment['score']) + ", "
+    print("Diagnosis: " + diagnosis)
+    query = "UPDATE questions SET sentiments = %s WHERE link = %s AND site = %s"
+    params = [diagnosis,question[1],question[13]]
+    cursor.execute(query,params)
+    conn.commit()
 
-        print(diagnosis)
-        query = "UPDATE questions SET sentiments = %s WHERE link = %s AND site = %s"
-        params = [diagnosis,question[0],question[2]]
-        cursor.execute(query,params)
-        conn.commit()
+    query = "SELECT answer_id,text,site FROM answers WHERE sentiments = '' AND question_id = %s"
+    params = [question[1]]
+    cursor.execute(query, params)
+    answers = cursor.fetchall()
+    answers_diagnosis(answers)
+    print("test")
 
 
 # Funcion que analiza y guarda los sentimientos de las respuestas en la BBDD
-def answers_diagnosis():
-    #seleccionamos las respuestas
-    query = "SELECT answer_id,text,site FROM answers where sentiments = ''"
-    cursor.execute(query)
-    data = cursor.fetchall()
+def answers_diagnosis(answers):
 
     # las pasamos al modelo de sentiment analysis y las guardamos el resultado en la BBDD
-    for answer in data:
+    for answer in answers:
         classifier = pipeline("text-classification", model = "j-hartmann/emotion-english-distilroberta-base", return_all_scores=True, truncation = True)
-        print("Texto de la pregunta: "+answer[1]+'\n')
         sentiments = classifier(answer[1])
-        print(sentiments)
+
         diagnosis = ""
         for sentiment in sentiments[0]:
             diagnosis = diagnosis + sentiment['label'] + ": " + str(sentiment['score']) + ", "
 
-        print(diagnosis)
+
         query = "UPDATE answers SET sentiments = %s WHERE answer_id = %s AND site = %s"
         params = [diagnosis, answer[0], answer[2]]
         cursor.execute(query, params)
@@ -150,10 +143,14 @@ def global_sentiments():
     cursor.execute(query,params)
     conn.commit()
 
-def main():
-    questions_diagnosis()
-    answers_diagnosis()
-    global_sentiments()
+
+def process1(question):
+    question_diagnosis(question)
+
+def process2():
     cats = [5, 20, 11, 17, 10, 19, 12, 18, 14, 24, 3, 21, 13, 27, 7, 9, 16, 29, 28]
     for cat in cats:
+        print("Analizando categoria: " + str(cat))
         sentiment_per_cat(cat)
+
+    global_sentiments()
