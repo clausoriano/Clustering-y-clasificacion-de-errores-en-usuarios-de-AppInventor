@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 import urllib.request
 import pymysql
 import urllib
+import pandas as pd
 
 # creamos la conexion con la BD
 conn = pymysql.connect(user=config.user, password=config.password, host=config.host, database=config.database)
@@ -36,17 +37,26 @@ def obtain_questions_so():
         questions = soup.find("div", {"id": "questions"})
         questions = questions.find_all("div", {"class": "s-post-summary js-post-summary"})
 
+        query = "SELECT link from questions"
+        cursor.execute(query)
+        existing_links = cursor.fetchall()
+        existing_links = pd.DataFrame(existing_links,columns=['link'])
+
         for q in questions:
             link = q.find("a", {"class": "s-link"})
             r1 = re.findall("\/([0-9]*)\/", str(link))
-            links_to_questions.append(r1[0])
+            does_exist = existing_links.loc[existing_links['link'] == str(r1[0])]
+            if len(does_exist) == 0:
+                links_to_questions.append(r1[0])
+            else:
+                print("Link already exists (StackOverflow): " + r1[0])
 
         page = page + 1
 
     # Guardar todos estos links en la bd
     for link in links_to_questions:
         newquestion = question.question(link, '', '', '', '', '', '', '', '', '', '',0)
-        print("Insertado link: " + link)
+        print("Inserted links: " + link)
         newquestion.insert()
 
 # Obtiene y guarda en la BD todos los links de las preguntas del foro App Inventor (Tabla Questions)
@@ -64,6 +74,10 @@ def obtain_questions_forum():
         if len(questions) == 0:
             flag = False
 
+        query = "SELECT link from questions"
+        cursor.execute(query)
+        existing_links = cursor.fetchall()
+        existing_links = pd.DataFrame(existing_links, columns=['link'])
         for q in questions:
             link = str(q['id'])
             title = q['title']
@@ -79,8 +93,12 @@ def obtain_questions_forum():
             owner = q['posters'][0]['user_id']
             tags = q['tags']
             tags = ','.join(tags)
-            newquestion = question.question(link, owner, title, '', score, views, date, out_time, category, tags, '', 1)
-            newquestion.insert()
+            does_exist = existing_links.loc[existing_links['link'] == link]
+            if len(does_exist) == 0:
+                newquestion = question.question(link, owner, title, '', score, views, date, out_time, category, tags, '', 1)
+                newquestion.insert()
+            else:
+                print("Link already exists (App Inventor Forum): " + link)
 
 
 def visit_links_forum():
@@ -171,6 +189,7 @@ def visit_links_forum():
                 time.sleep(SCROLL_PAUSE_TIME)
 
         print(answers)
+        users_data_forum(link)
         print('ERRORES: '+ str(cont))
 
 
@@ -273,6 +292,11 @@ def obtain_text(soup, cont, link):
 def obtain_answers(soup, link):
     answers = soup.find_all("div",
                             {"class": ["answer js-answer", "answer js-answer accepted-answer js-accepted-answer"]})
+    query = "SELECT answer_id from answers"
+    cursor.execute(query)
+    existing_answers = cursor.fetchall()
+    existing_answers = pd.DataFrame(existing_answers, columns=['answer_id'])
+
     for answer in answers:
         userdetails = answer.find_all("div", {
             "class": ["post-signature flex--item fl0", "post-signature owner flex--item fl0"]})
@@ -311,8 +335,12 @@ def obtain_answers(soup, link):
         month = datetime.strptime(date[0],'%b').month
         date = datetime(int(date[2]),month,int(date[1]))
         date = date.strftime("%Y-%m-%d")
-        newanswer = ans.answer(link[0], answerid, owner_id[0], text,category, score,date,time,"",0)
-        newanswer.insert()
+        does_exist = existing_answers.loc[existing_answers['answer_id'] == str(answerid)]
+        if len(does_exist) == 0:
+            newanswer = ans.answer(link[0], answerid, owner_id[0], text,category, score,date,time,"",0)
+            newanswer.insert()
+        else:
+            print("La respuesta ya existe (StackOverflow): " + str(answerid))
 
 
 # Obtiene y guarda los tags adicionales de cada pregunta en la BD (Tabla Questions)
@@ -329,105 +357,100 @@ def obtain_tags(soup, cont, link):
     print("FIN")
 
 # Obtener nombres de usuario app inventor
-def users_data_forum():
-    query = "SELECT link FROM questions WHERE site = 1 AND username = '' AND text != ''"  # Seleccionamos los links de AppInventor community de la BD
-    cursor.execute(query)
-    questions = cursor.fetchall()
+def users_data_forum(link):
+    flag = True
+    link = link[0]
+    url = "https://community.appinventor.mit.edu/t/" + link
+    print("Link: " + url)
+    try:
+        html_page = urllib.request.urlopen(url)
+    except:
+        print("Esa pagina ya no existe.")
+        flag = False
 
-    for question in questions:
+    if flag:
+        soup = BeautifulSoup(html_page, "html.parser")
+        username = soup.find("span", {'class': 'creator'})
+        username = username.find("span").text
 
-        flag = True
-        url = "https://community.appinventor.mit.edu/t/" + str(question[0])
-        print("Link: " + url)
-        try:
-            html_page = urllib.request.urlopen(url)
-        except:
-            print("Esa pagina ya no existe.")
-            flag = False
+        query = "UPDATE questions SET username = %s WHERE link = %s AND site = 1"
+        params = [username,link]
+        cursor.execute(query,params)
 
-        if flag:
-            soup = BeautifulSoup(html_page, "html.parser")
-            username = soup.find("span", {'class': 'creator'})
-            username = username.find("span").text
+        query = "SELECT username FROM users"
+        cursor.execute(query)
+        users = cursor.fetchall()
 
-            query = "UPDATE questions SET username = %s WHERE link = %s AND site = 1"
-            params = [username,question[0]]
-            cursor.execute(query,params)
+        if (any(username in i for i in users)):
+            print("Ese usuario ya esta en la BBDD")
+        else:
+            query = "INSERT INTO users(username) VALUES (%s)"
+            params = [username]
+            cursor.execute(query, params)
+            visit_users_profiles_forum(username)
+            print("Usuario: " + username + " insertado.")
 
-            query = "SELECT username FROM users"
-            cursor.execute(query)
-            users = cursor.fetchall()
-
-            if (any(username in i for i in users)):
-                print("Ese usuario ya esta en la BBDD")
-            else:
-                query = "INSERT INTO users(username) VALUES (%s)"
-                params = [username]
-                cursor.execute(query, params)
-                print("Usuario: " + username + " insertado.")
-
-            conn.commit()
+        conn.commit()
 
 # visitar los perfiles de los usuarios para obtener su localización
-def visit_users_profiles_forum():
-    query = "SELECT username FROM users WHERE owner = 0"  # Seleccionamos los links de AppInventor community de la BD
-    cursor.execute(query)
-    usernames = cursor.fetchall()
+def visit_users_profiles_forum(username):
 
     driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()))  # Inicializamos el driver web
     driver.set_window_size(700, 768)
 
-    for username in usernames:
+    flag = True
+    url = "https://community.appinventor.mit.edu/u/"+ str(username)
+    try:
+        html_page = urllib.request.urlopen(url)
+    except:
+        print("Ese perfil ya no existe.")
+        flag = False
 
-        flag = True
-        url = "https://community.appinventor.mit.edu/u/"+ str(username[0])
-        print("Profile link: " + url)
-        try:
-            html_page = urllib.request.urlopen(url)
-        except:
-            print("Ese perfil ya no existe.")
-            flag = False
+    if flag:
+        driver.get(url)
+        soup = BeautifulSoup(driver.page_source,"html.parser")
+        data = soup.find("div", {"class": "ember-view"})
+        location = data.find("div", {"class": "user-profile-location"})
 
-        if flag:
-            driver.get(url)
-            soup = BeautifulSoup(driver.page_source,"html.parser")
-            data = soup.find("div", {"class": "ember-view"})
-            location = data.find("div", {"class": "user-profile-location"})
-
-            if location is None:
-                location = ''
-            else:
-                location = location.text
-            print("Usuario: " + str(username[0]) + " Location: " + location)
+        if location is None:
+            location = ''
+        else:
+            location = location.text
 
 
-            query = "UPDATE users SET location = %s WHERE username = %s"
-            params = [location, str(username[0])]
-            cursor.execute(query, params)
-            conn.commit()
-
-
-        query = "SELECT owner FROM questions WHERE username = %s"
-        params = [str(username[0])]
-        cursor.execute(query, params)
-        data = cursor.fetchone()
-
-        query = "UPDATE users SET owner = %s WHERE username = %s"
-        params = [data[0], str(username[0])]
+        query = "UPDATE users SET location = %s WHERE username = %s"
+        params = [location, str(username)]
         cursor.execute(query, params)
         conn.commit()
+        driver.close()
 
-        print("Fin")
-        time.sleep(1.5)
 
+    query = "SELECT owner FROM questions WHERE username = %s"
+    params = [str(username)]
+    cursor.execute(query, params)
+    data = cursor.fetchone()
+
+    query = "UPDATE users SET owner = %s WHERE username = %s"
+    params = [data[0], str(username)]
+    cursor.execute(query, params)
+    conn.commit()
+
+    time.sleep(1.5)
+
+def clear():
+    query = "DELETE FROM questions WHERE text = ''"
+    cursor.execute(query)
+    conn.commit()
 
 def main():
     obtain_questions_so()
-    obtain_questions_forum()
     visit_links_so()
+    obtain_questions_forum()
     visit_links_forum()
-    users_data_forum()
-    visit_users_profiles_forum()
+
+
+
+
 
 
 

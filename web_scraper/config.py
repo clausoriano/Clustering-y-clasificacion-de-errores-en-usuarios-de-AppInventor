@@ -1,5 +1,4 @@
-api_key =" "
-host = ''
+host = 'localhost'
 password = ''
-user = ''
-database = ''
+user = 'root'
+database = 'testdb2'
